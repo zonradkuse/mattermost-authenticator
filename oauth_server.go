@@ -13,9 +13,10 @@ type OAuthServer struct {
 	server        *osin.Server
 	store         *mysql.Storage
 	authenticator OAuthAuthenticatorBackend
+	loginHandler  http.HandlerFunc
 }
 
-func NewOAuthServer(sqlConn *sql.DB, schemaPrefix string, config *osin.ServerConfig, backend OAuthAuthenticatorBackend) OAuthServer {
+func NewOAuthServer(sqlConn *sql.DB, schemaPrefix string, config *osin.ServerConfig, backend OAuthAuthenticatorBackend, loginHandler http.HandlerFunc) OAuthServer {
 	var authServer OAuthServer
 	store := mysql.New(sqlConn, schemaPrefix)
 	if err := store.CreateSchemas(); err != nil {
@@ -25,6 +26,7 @@ func NewOAuthServer(sqlConn *sql.DB, schemaPrefix string, config *osin.ServerCon
 	authServer.store = store
 	authServer.server = osin.NewServer(config, store)
 	authServer.authenticator = backend
+	authServer.loginHandler = loginHandler
 
 	return authServer
 }
@@ -114,6 +116,9 @@ func (this *OAuthServer) HandleAuthorizeRequest(w http.ResponseWriter, r *http.R
 		if err == nil && userId != "" {
 			ar.UserData = userId
 			ar.Authorized = true
+		} else {
+			this.loginHandler(w, r)
+			return
 		}
 
 		this.server.FinishAuthorizeRequest(resp, r, ar)
