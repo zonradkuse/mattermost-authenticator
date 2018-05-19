@@ -113,13 +113,14 @@ func (this *OAuthServer) HandleAuthorizeRequest(w http.ResponseWriter, r *http.R
 		username := r.PostFormValue("username")
 		password := r.PostFormValue("password")
 		err, userId := this.authenticator.Authenticate(username, password)
-		if err == nil && userId != "" {
-			ar.UserData = userId
-			ar.Authorized = true
-		} else {
+		if err != nil || userId == "" {
+			// serve the login page again if the authentication fails
 			this.loginHandler(w, r)
 			return
 		}
+
+		ar.UserData = userId
+		ar.Authorized = true
 
 		this.server.FinishAuthorizeRequest(resp, r, ar)
 	}
