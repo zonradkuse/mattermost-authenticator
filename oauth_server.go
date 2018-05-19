@@ -72,12 +72,13 @@ func (this *OAuthServer) HandleTokenInfoRequest(w http.ResponseWriter, r *http.R
 }
 
 func (this *OAuthServer) HandleUserInfoRequest(w http.ResponseWriter, r *http.Request) {
+	log.Println("User Info Endpoint")
 	resp := this.server.NewResponse()
 	defer resp.Close()
 
 	if ir := this.server.HandleInfoRequest(resp, r); ir != nil {
-		user, err := this.authenticator.GetUserById(ir.AccessData.UserData.(string))
-		if err == nil {
+		err, user := this.authenticator.GetUserById(ir.AccessData.UserData.(string))
+		if err == nil && user != nil {
 			js, err := json.Marshal(user)
 
 			if err != nil {
@@ -88,11 +89,12 @@ func (this *OAuthServer) HandleUserInfoRequest(w http.ResponseWriter, r *http.Re
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(js)
 			return
-		} else {
-			resp.ErrorStatusCode = 500
-			resp.SetError(osin.E_SERVER_ERROR, "")
-			log.Printf("ERROR: %s\n", resp.InternalError)
 		}
+
+		resp.ErrorStatusCode = 500
+		resp.SetError(osin.E_SERVER_ERROR, "")
+		log.Printf("ERROR: %s\n", resp.InternalError)
+
 	}
 
 	osin.OutputJSON(resp, w, r)
