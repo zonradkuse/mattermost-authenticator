@@ -1,6 +1,7 @@
 package oauth
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"github.com/RangelReale/osin"
@@ -72,7 +73,6 @@ func (this *OAuthServer) HandleTokenInfoRequest(w http.ResponseWriter, r *http.R
 }
 
 func (this *OAuthServer) HandleUserInfoRequest(w http.ResponseWriter, r *http.Request) {
-	log.Println("User Info Endpoint")
 	resp := this.server.NewResponse()
 	defer resp.Close()
 
@@ -117,7 +117,11 @@ func (this *OAuthServer) HandleAuthorizeRequest(w http.ResponseWriter, r *http.R
 		err, userId := this.authenticator.Authenticate(username, password)
 		if err != nil || userId == "" {
 			// serve the login page again if the authentication fails
-			this.loginHandler(w, r)
+			log.Printf("ERROR: Could not authenticate user %s and got error %+v", username, err)
+			ctx := context.WithValue(r.Context(), "hasError", true)
+			ctx = context.WithValue(ctx, "error", "Invalid Credentials.")
+
+			this.loginHandler(w, r.WithContext(ctx))
 			return
 		}
 
