@@ -39,7 +39,7 @@ func (server *Server) CreateClient(id, secret, redirectURI string) {
 	var client osin.DefaultClient
 	client.Id = id
 	client.Secret = secret
-	client.RedirectUri = redirectUri
+	client.RedirectUri = redirectURI
 
 	server.store.CreateClient(&client)
 }
