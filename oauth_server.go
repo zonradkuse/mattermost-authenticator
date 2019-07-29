@@ -10,15 +10,17 @@ import (
 	"net/http"
 )
 
-type OAuthServer struct {
+// Server is a OAuth server
+type Server struct {
 	server        *osin.Server
 	store         *mysql.Storage
-	authenticator OAuthAuthenticatorBackend
+	authenticator AuthenticatorBackend
 	loginHandler  http.HandlerFunc
 }
 
-func NewOAuthServer(sqlConn *sql.DB, schemaPrefix string, config *osin.ServerConfig, backend OAuthAuthenticatorBackend, loginHandler http.HandlerFunc) OAuthServer {
-	var authServer OAuthServer
+// NewServer creates a new OAuth Server with given osin-config
+func NewServer(sqlConn *sql.DB, schemaPrefix string, config *osin.ServerConfig, backend AuthenticatorBackend, loginHandler http.HandlerFunc) Server {
+	var authServer Server
 	store := mysql.New(sqlConn, schemaPrefix)
 	if err := store.CreateSchemas(); err != nil {
 		panic(err)
@@ -32,26 +34,29 @@ func NewOAuthServer(sqlConn *sql.DB, schemaPrefix string, config *osin.ServerCon
 	return authServer
 }
 
-func (this *OAuthServer) CreateClient(id, secret, redirectUri string) {
-	var client oAuthClient
+// CreateClient stores a new (id, secret) into the database
+func (server *Server) CreateClient(id, secret, redirectURI string) {
+	var client osin.DefaultClient
 	client.Id = id
 	client.Secret = secret
 	client.RedirectUri = redirectUri
 
-	this.store.CreateClient(client)
+	server.store.CreateClient(&client)
 }
 
-func (this *OAuthServer) RemoveClient(id string) {
-	this.store.RemoveClient(id)
+// RemoveClient removes a (id, secret)-tuple from the database again.
+func (server *Server) RemoveClient(id string) {
+	server.store.RemoveClient(id)
 }
 
-func (this *OAuthServer) HandleTokenRequest(w http.ResponseWriter, r *http.Request) {
-	resp := this.server.NewResponse()
+// HandleTokenRequest is a http handler to handle to token request
+func (server *Server) HandleTokenRequest(w http.ResponseWriter, r *http.Request) {
+	resp := server.server.NewResponse()
 	defer resp.Close()
 
-	if ar := this.server.HandleAccessRequest(resp, r); ar != nil {
+	if ar := server.server.HandleAccessRequest(resp, r); ar != nil {
 		ar.Authorized = true
-		this.server.FinishAccessRequest(resp, r, ar)
+		server.server.FinishAccessRequest(resp, r, ar)
 	}
 
 	if resp.IsError && resp.InternalError != nil {
@@ -61,23 +66,25 @@ func (this *OAuthServer) HandleTokenRequest(w http.ResponseWriter, r *http.Reque
 	osin.OutputJSON(resp, w, r)
 }
 
-func (this *OAuthServer) HandleTokenInfoRequest(w http.ResponseWriter, r *http.Request) {
-	resp := this.server.NewResponse()
+// HandleTokenInfoRequest is a http handler to handle to tokeninfo request
+func (server *Server) HandleTokenInfoRequest(w http.ResponseWriter, r *http.Request) {
+	resp := server.server.NewResponse()
 	defer resp.Close()
 
-	if ir := this.server.HandleInfoRequest(resp, r); ir != nil {
-		this.server.FinishInfoRequest(resp, r, ir)
+	if ir := server.server.HandleInfoRequest(resp, r); ir != nil {
+		server.server.FinishInfoRequest(resp, r, ir)
 	}
 
 	osin.OutputJSON(resp, w, r)
 }
 
-func (this *OAuthServer) HandleUserInfoRequest(w http.ResponseWriter, r *http.Request) {
-	resp := this.server.NewResponse()
+// HandleUserInfoRequest is a http handler to handle to userinfo request
+func (server *Server) HandleUserInfoRequest(w http.ResponseWriter, r *http.Request) {
+	resp := server.server.NewResponse()
 	defer resp.Close()
 
-	if ir := this.server.HandleInfoRequest(resp, r); ir != nil {
-		err, user := this.authenticator.GetUserById(ir.AccessData.UserData.(string))
+	if ir := server.server.HandleInfoRequest(resp, r); ir != nil {
+		err, user := server.authenticator.GetUserByID(ir.AccessData.UserData.(string))
 		if err == nil && user != nil {
 			js, err := json.Marshal(user)
 
@@ -100,35 +107,36 @@ func (this *OAuthServer) HandleUserInfoRequest(w http.ResponseWriter, r *http.Re
 	osin.OutputJSON(resp, w, r)
 }
 
-func (this *OAuthServer) HandleAuthorizeRequest(w http.ResponseWriter, r *http.Request) {
-	resp := this.server.NewResponse()
+// HandleAuthorizeRequest is a http handler to handle to authorize request
+func (server *Server) HandleAuthorizeRequest(w http.ResponseWriter, r *http.Request) {
+	resp := server.server.NewResponse()
 	defer resp.Close()
 
-	if ar := this.server.HandleAuthorizeRequest(resp, r); ar != nil {
+	if ar := server.server.HandleAuthorizeRequest(resp, r); ar != nil {
 		err := r.ParseForm()
 		if err != nil {
-			this.server.FinishAuthorizeRequest(resp, r, ar)
+			server.server.FinishAuthorizeRequest(resp, r, ar)
 			osin.OutputJSON(resp, w, r)
 			return
 		}
 
 		username := r.PostFormValue("username")
 		password := r.PostFormValue("password")
-		err, userId := this.authenticator.Authenticate(username, password)
-		if err != nil || userId == "" {
+		userID, err := server.authenticator.Authenticate(username, password)
+		if err != nil || userID == "" {
 			// serve the login page again if the authentication fails
 			log.Printf("ERROR: Could not authenticate user %s and got error %+v", username, err)
 			ctx := context.WithValue(r.Context(), "hasError", true)
 			ctx = context.WithValue(ctx, "error", "Invalid Credentials.")
 
-			this.loginHandler(w, r.WithContext(ctx))
+			server.loginHandler(w, r.WithContext(ctx))
 			return
 		}
 
-		ar.UserData = userId
+		ar.UserData = userID
 		ar.Authorized = true
 
-		this.server.FinishAuthorizeRequest(resp, r, ar)
+		server.server.FinishAuthorizeRequest(resp, r, ar)
 	}
 
 	if resp.IsError && resp.InternalError != nil {
