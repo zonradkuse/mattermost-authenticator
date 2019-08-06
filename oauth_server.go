@@ -7,9 +7,12 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/RangelReale/osin"
 	mysql "github.com/felipeweb/osin-mysql"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
 
@@ -27,6 +30,13 @@ type Server struct {
 
 	// TemplatePath is a relative, slash terminated, path holding the used templates to render
 	TemplatePath string
+
+	// All paths necessary to start up the endpoints
+	StaticPath  string
+	RouteStatic string
+	RouteLogin  string
+	RouteToken  string
+	RouteInfo   string
 }
 
 // NewServer creates a new Server with default handlers
@@ -191,4 +201,21 @@ func renderTemplateWithData(templatePath string, w http.ResponseWriter, id strin
 		return false
 	}
 	return true
+}
+
+// ListenAndServe starts a webserver at the previously defined endpoints
+func (server *Server) ListenAndServe(listen string) {
+	log.Println("Starting Webservice...")
+
+	r := mux.NewRouter()
+	r.PathPrefix(server.RouteStatic).Handler(http.StripPrefix(server.RouteStatic, http.FileServer(http.Dir(server.StaticPath))))
+	r.HandleFunc(server.RouteLogin, server.HandleLoginRequest).Methods("GET")
+	r.HandleFunc(server.RouteLogin, server.HandleAuthorizeRequest).Methods("POST")
+	r.HandleFunc(server.RouteToken, server.HandleTokenRequest).Methods("POST")
+	r.HandleFunc(server.RouteInfo, server.HandleUserInfoRequest).Methods("GET")
+
+	// Start http server
+	log.Println("Listening on " + listen)
+	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
+	http.ListenAndServe(listen, loggedRouter)
 }
