@@ -102,7 +102,7 @@ func (server *Server) HandleTokenRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	if resp.IsError && resp.InternalError != nil {
-		log.Printf("ERROR: %s\n", resp.InternalError)
+		log.Printf("ERROR: %v\n", resp.InternalError)
 	}
 
 	osin.OutputJSON(resp, w, r)
