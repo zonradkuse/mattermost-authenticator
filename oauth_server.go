@@ -102,7 +102,7 @@ func (server *Server) HandleTokenRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	if resp.IsError && resp.InternalError != nil {
-		log.Printf("ERROR: %v\n", resp.InternalError)
+		log.Printf("ERROR: %+v\n", resp.InternalError)
 	}
 
 	osin.OutputJSON(resp, w, r)
@@ -126,7 +126,7 @@ func (server *Server) HandleUserInfoRequest(w http.ResponseWriter, r *http.Reque
 	defer resp.Close()
 
 	if ir := server.osin.HandleInfoRequest(resp, r); ir != nil {
-		err, user := server.authenticator.GetUserByID(ir.AccessData.UserData.(string))
+		user, err := server.authenticator.GetUserByID(ir.AccessData.UserData.(string))
 		if err == nil && user != nil {
 			js, err := json.Marshal(user)
 
@@ -142,7 +142,7 @@ func (server *Server) HandleUserInfoRequest(w http.ResponseWriter, r *http.Reque
 
 		resp.ErrorStatusCode = 500
 		resp.SetError(osin.E_SERVER_ERROR, "")
-		log.Printf("ERROR: %s\n", resp.InternalError)
+		log.Printf("ERROR: %+v\n", resp.InternalError)
 
 	}
 
@@ -182,7 +182,7 @@ func (server *Server) HandleAuthorizeRequest(w http.ResponseWriter, r *http.Requ
 	}
 
 	if resp.IsError && resp.InternalError != nil {
-		log.Printf("ERROR: %s\n", resp.InternalError)
+		log.Printf("ERROR: %+v\n", resp.InternalError)
 	}
 
 	osin.OutputJSON(resp, w, r)
