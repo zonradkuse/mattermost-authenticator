@@ -39,6 +39,12 @@ type Server struct {
 	RouteInfo   string
 }
 
+// TemplateData determines whether there was an error fullfilling a request
+type TemplateData struct {
+	Error    string
+	HasError bool
+}
+
 // NewServer creates a new Server with default handlers
 func NewServer(conn *sql.DB, prefix string, config *osin.ServerConfig, backend AuthenticatorBackend) Server {
 	server := NewServerWithCustomHandlers(conn, prefix, config, backend)
@@ -184,7 +190,17 @@ func (server *Server) HandleAuthorizeRequest(w http.ResponseWriter, r *http.Requ
 
 // HandleLoginRequest is a http handler to handle login requests
 func (server *Server) HandleLoginRequest(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(server.TemplatePath, w, "index.html")
+	var templ TemplateData
+	if r.Context().Value("error") != nil {
+		templ.Error = r.Context().Value("error").(string)
+		templ.HasError = r.Context().Value("hasError").(bool)
+
+		renderTemplateWithData(server.TemplatePath, w, "login.html", templ)
+		return
+	}
+
+	templ.HasError = false
+	renderTemplateWithData(server.TemplatePath, w, "login.html", templ)
 }
 
 func renderTemplate(templatePath string, w http.ResponseWriter, id string) {
